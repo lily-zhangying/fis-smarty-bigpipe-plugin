@@ -1,5 +1,7 @@
 <?php
-if (!class_exists('FISResource', false)) require_once(dirname(__FILE__) . '/FISResource.class.php');
+if (!class_exists('FISResource')) require_once(dirname(__FILE__) . '/FISResource.class.php');
+
+
 
 /**
  * Checks a string for UTF-8 encoding.
@@ -114,6 +116,8 @@ class FISPagelet {
 
     static protected $bigrender = false;
 
+    static protected $remote_widget_rules = null;
+
     /**
      * 某一个widget使用那种模式渲染
      * @var number
@@ -150,6 +154,22 @@ class FISPagelet {
             self::setMode(self::$default_mode);
         }
         self::setFilter($_GET['pagelets']);
+    }
+
+    //获取remote widget的rule
+    public static function registerRemoteWidgetRules($smarty){
+        if(!self::$remote_widget_rules){
+            $arrConfigDir = $smarty->getConfigDir();
+            $strRemoteWidgetName = "pagelet/remote_widget.json";
+            foreach ($arrConfigDir as $strDir) {
+                $strPath = preg_replace('/[\\/\\\\]+/', '/', $strDir . '/' . $strRemoteWidgetName);
+                if(is_file($strPath)){
+                    self::$remote_widget_rules = json_decode(file_get_contents($strPath), true);
+                    return true;
+                } 
+            }
+            return false;
+        }
     }
 
     static public function setMode($mode){
@@ -221,6 +241,42 @@ class FISPagelet {
         return $mode;
     }
 
+    static public function remote_start($id, $rulename) {
+        if($rule = self::$remote_widget_rules[$rulename]){
+            $params = "&force_mode=1&t=" . substr(rand(), 3);
+            foreach ($rule['params'] as $key => $value) {
+                $params .= "&" . $key . "=" . $value; 
+            }
+            $url = $rule['domain'] . $rule['url'] . '?' . 'pagelets[]=' . $id . $params;
+            $ch = curl_init(); 
+            curl_setopt($ch, CURLOPT_URL, $url); 
+            curl_setopt($ch, CURLOPT_HEADER, 0);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE); 
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 5000);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, 
+                array(
+                    'X-Requested-With:XMLHttpRequest',
+                    'Content-Type: application/json',
+                    'Charset: utf-8',
+                    'User-Agent:' . $_SERVER[HTTP_USER_AGENT]
+                )                                                            
+            );    
+            //cookie
+            curl_setopt($ch, CURLOPT_COOKIE, $_COOKIE);
+            $result = curl_exec($ch); 
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE); 
+            curl_close($ch); 
+            $content = '<div id=' . $id . '></div>';
+            echo $content;
+            if($httpCode < 400) {
+                $rule_domain = str_replace('/', '\/', $rule['domain']);
+                $result = str_replace('\/static\/', $rule_domain . '\/static\/', $result);
+                echo $content;
+                $script = 'BigPipe.process('. $result . ');';
+                FISPagelet::addScript($script);
+            }
+        }
+    }
 
     /**
      * WIDGET START
@@ -585,7 +641,7 @@ class FISPagelet {
               
                 break;
             case self::MODE_QUICKLING:
-                header('Content-Type: text/json; charset=utf-8');
+                header('Content-Type: text/json;charset: utf-8');
                 if ($res['script']) {
                     $res['script'] = convertToUtf8(implode("\n", $res['script']));
                 }
