@@ -11,7 +11,7 @@ function smarty_compiler_remote_widget($arrParams,  $smarty){
 
     if($strPageletId && $strRule){
         $strCode .= 'FISPagelet::registerRemoteWidgetRules($_smarty_tpl->smarty);';
-        $strCode .= 'FISPagelet::remote_start(' . $strPageletId . ',' . $strRule . ');';
+        $strCode .= 'FISPagelet::remote_start(' . $strPageletId . ',' . $strRule . ', $_smarty_tpl->smarty);';
     } else {
         trigger_error('undefined remote widget pagelet_id or rule in file "' . $smarty->_current_file . '"', E_USER_ERROR);
     }
