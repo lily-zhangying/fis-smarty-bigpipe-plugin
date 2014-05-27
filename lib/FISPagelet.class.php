@@ -291,7 +291,7 @@ class FISPagelet {
             if($httpCode < 400) {
                 $rule_domain = str_replace('/', '\/', $rule['domain']);
                 $result = str_replace('\/static\/', $rule_domain . '\/static\/', $result);
-                $script = 'BigPipe.process('. $result . ');';
+                $script = 'BigPipe.onPagelets('. $result . ', "' . $id . '");';
                 FISPagelet::addScript($script);
             }else{
                 trigger_error("Http error:  $httpCode\n  Msg: " . $result, E_USER_NOTICE);
