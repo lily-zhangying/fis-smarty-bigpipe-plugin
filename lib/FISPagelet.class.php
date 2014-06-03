@@ -159,7 +159,6 @@ class FISPagelet {
     public static function registerRemoteWidgetRules($smarty){
         if(!self::$remote_widget_rules){
             $arrConfigDir = $smarty->getConfigDir();
-            $strRemoteWidgetName = "pagelet/remote_widget.json";
             foreach ($arrConfigDir as $strDir) {
                 $strPath = preg_replace('/[\\/\\\\]+/', '/', $strDir . '/' . $strRemoteWidgetName);
                 if(is_file($strPath)){
