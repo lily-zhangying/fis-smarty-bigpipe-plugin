@@ -162,7 +162,14 @@ class FISPagelet {
             foreach ($arrConfigDir as $strDir) {
                 $strPath = preg_replace('/[\\/\\\\]+/', '/', $strDir . '/' . $strRemoteWidgetName);
                 if(is_file($strPath)){
-                    self::$remote_widget_rules = json_decode(file_get_contents($strPath), true);
+                    $Arrjson = json_decode(file_get_contents($strPath), true);
+                    foreach($Arrjson as &$value) {
+                        $domain = $value['domain'];
+                        $url = $value['url'];
+                        $value['domain'] = substr($domain, -1) == '/' ? substr($domain, 0, -1) : $domain;
+                        $value['url'] = substr($url, 1) == '/' ? $url : '/' . $url;
+                    }
+                    self::$remote_widget_rules = $Arrjson;
                     return true;
                 } 
             }
@@ -239,10 +246,19 @@ class FISPagelet {
         return $mode;
     }
 
-    static public function remote_start($id, $rulename) {
+    static public function remote_start($id, $rulename, $smarty) {
         if($rule = self::$remote_widget_rules[$rulename]){
             $params = "&force_mode=1&t=" . substr(rand(), 3);
             foreach ($rule['params'] as $key => $value) {
+                if(substr($value, 0, 1) == '$') {
+                    $arrValue = explode('.', substr($value, 1));
+                    $smarty_value = $smarty->getTemplateVars(array_shift($arrValue));
+                    foreach ($arrValue as $v) {
+                        $smarty_value = $smarty_value[$v];
+                    }
+                    $value = $smarty_value;
+                }
+                
                 $params .= "&" . $key . "=" . $value; 
             }
             $url = $rule['domain'] . $rule['url'] . '?' . 'pagelets[]=' . $id . $params;
@@ -250,7 +266,7 @@ class FISPagelet {
             curl_setopt($ch, CURLOPT_URL, $url); 
             curl_setopt($ch, CURLOPT_HEADER, 0);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE); 
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 5000);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 1000);
             curl_setopt($ch, CURLOPT_HTTPHEADER, 
                 array(
                     'X-Requested-With:XMLHttpRequest',
@@ -266,12 +282,18 @@ class FISPagelet {
             curl_close($ch); 
             $content = '<div id=' . $id . '></div>';
             echo $content;
+            if($result === false){
+                trigger_error('Curl error: ' . curl_error($ch), E_USER_NOTICE);
+                return;
+            }
+
             if($httpCode < 400) {
                 $rule_domain = str_replace('/', '\/', $rule['domain']);
                 $result = str_replace('\/static\/', $rule_domain . '\/static\/', $result);
-                echo $content;
-                $script = 'BigPipe.process('. $result . ');';
+                $script = 'BigPipe.onPagelets('. $result . ', "' . $id . '");';
                 FISPagelet::addScript($script);
+            }else{
+                trigger_error("Http error:  $httpCode\n  Msg: " . $result, E_USER_NOTICE);
             }
         }
     }
